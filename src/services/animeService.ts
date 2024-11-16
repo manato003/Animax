@@ -1,7 +1,9 @@
-import { AnimeBasic, AnimeDetailed } from '../types/anime';
 import { useSettingsStore } from '../store/settingsStore';
+import { AnimeBasic, AnimeDetailed } from '../types/anime';
 
 const BASE_URL = 'https://api.jikan.moe/v4';
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAY = 1000;
 
 // 日本の主要アニメスタジオリスト
 const JAPANESE_STUDIOS = [
@@ -20,35 +22,46 @@ const GENRE_MAP: { [key: number]: string } = {
   2: 'アドベンチャー',
   4: 'コメディ',
   8: 'ドラマ',
+  9: '青年向け',
   10: 'ファンタジー',
-  14: '恋愛',
+  14: 'ホラー',
   18: 'ロボット',
+  19: '音楽',
   22: '恋愛',
   23: '学園',
   24: 'SF',
+  30: 'スポーツ',
   36: '日常',
-  37: '超自然',
-  41: '青春',
-  62: '異世界',
+  42: '青春',
+  46: '受賞歴のある作品',
+  62: '異世界'
 };
 
-const fetchWithCache = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-  return response.json();
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url: string, attempts = RETRY_ATTEMPTS): Promise<any> => {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (i === attempts - 1) throw error;
+      await sleep(RETRY_DELAY * (i + 1));
+    }
+  }
 };
 
 const isJapaneseAnime = (anime: any): boolean => {
-  // 1. 制作会社チェック
   const hasJapaneseStudio = anime.studios?.some((studio: any) => 
     JAPANESE_STUDIOS.includes(studio.name) || 
     /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(studio.name)
   );
   
-  // 2. 国籍チェック
   const isFromJapan = anime.origin_country === 'Japan';
-  
-  // 3. 制作会社名の日本語チェック
   const hasJapaneseStudioName = anime.studios?.some((studio: any) =>
     /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(studio.name)
   );
@@ -58,95 +71,112 @@ const isJapaneseAnime = (anime: any): boolean => {
 
 export const fetchAnimeByGenre = async (
   genreId: number | null,
-  sortType: 'popularity' | 'trending' | 'newest' | null,
+  sortType: 'popularity' | 'rating' | 'airing' | 'newest' | null,
   page: number = 1
 ): Promise<AnimeBasic[]> => {
-  const { showOnlyJapanese } = useSettingsStore.getState();
-  let url = `${BASE_URL}/anime?page=${page}&limit=24&sfw=true`;
-  
-  if (genreId) {
-    url += `&genres=${genreId}`;
+  try {
+    const { showOnlyJapanese } = useSettingsStore.getState();
+    let url = `${BASE_URL}/anime?page=${page}&limit=24`;
+    
+    if (genreId) {
+      url += `&genres=${genreId}`;
+    }
+
+    switch (sortType) {
+      case 'rating':
+        url += '&order_by=score&sort=desc&min_scoring_users=1000';
+        break;
+      case 'airing':
+        url += '&status=airing&order_by=score&sort=desc';
+        break;
+      case 'newest':
+        url += '&order_by=start_date&sort=desc';
+        break;
+      case 'popularity':
+      default:
+        url += '&order_by=members&sort=desc';
+    }
+
+    const data = await fetchWithRetry(url);
+    let animeList = data.data
+      .map((anime: any) => ({
+        ...formatAnimeData(anime),
+        uniqueId: `${anime.mal_id}-${Date.now()}-${Math.random()}`
+      }));
+
+    if (showOnlyJapanese) {
+      animeList = animeList.filter(anime => isJapaneseAnime(anime));
+    }
+
+    return animeList.slice(0, 10);
+  } catch (error) {
+    console.error('アニメデータの取得に失敗しました:', error);
+    return [];
   }
-
-  switch (sortType) {
-    case 'trending':
-      url += '&status=airing&order_by=score&sort=desc&min_scoring_users=1000';
-      break;
-    case 'newest':
-      url += '&order_by=start_date&sort=desc';
-      break;
-    case 'popularity':
-    default:
-      url += '&order_by=members&sort=desc';
-  }
-
-  const data = await fetchWithCache(url);
-  let animeList = data.data
-    .map((anime: any) => ({
-      ...formatAnimeData(anime),
-      uniqueId: `${anime.mal_id}-${Date.now()}-${Math.random()}`
-    }));
-
-  if (showOnlyJapanese) {
-    animeList = animeList.filter(anime => isJapaneseAnime(anime));
-  }
-
-  return animeList.slice(0, 10);
 };
 
 export const searchAnime = async (query: string, page: number = 1): Promise<AnimeBasic[]> => {
-  const { showOnlyJapanese } = useSettingsStore.getState();
-  const data = await fetchWithCache(
-    `${BASE_URL}/anime?q=${encodeURIComponent(query)}&page=${page}&limit=24&sfw=true`
-  );
-  
-  let animeList = data.data
-    .map((anime: any) => ({
-      ...formatAnimeData(anime),
-      uniqueId: `${anime.mal_id}-${Date.now()}-${Math.random()}`
-    }));
+  try {
+    const { showOnlyJapanese } = useSettingsStore.getState();
+    const data = await fetchWithRetry(
+      `${BASE_URL}/anime?q=${encodeURIComponent(query)}&page=${page}&limit=24`
+    );
+    
+    let animeList = data.data
+      .map((anime: any) => ({
+        ...formatAnimeData(anime),
+        uniqueId: `${anime.mal_id}-${Date.now()}-${Math.random()}`
+      }));
 
-  if (showOnlyJapanese) {
-    animeList = animeList.filter(anime => isJapaneseAnime(anime));
+    if (showOnlyJapanese) {
+      animeList = animeList.filter(anime => isJapaneseAnime(anime));
+    }
+
+    return animeList.slice(0, 10);
+  } catch (error) {
+    console.error('アニメの検索に失敗しました:', error);
+    return [];
   }
-
-  return animeList.slice(0, 10);
 };
 
 export const fetchAnimeDetails = async (id: number): Promise<AnimeDetailed> => {
-  const [animeData, charactersData] = await Promise.all([
-    fetchWithCache(`${BASE_URL}/anime/${id}/full`),
-    fetchWithCache(`${BASE_URL}/anime/${id}/characters`)
-  ]);
+  try {
+    const [animeData, charactersData] = await Promise.all([
+      fetchWithRetry(`${BASE_URL}/anime/${id}/full`),
+      fetchWithRetry(`${BASE_URL}/anime/${id}/characters`)
+    ]);
 
-  // 日本語の声優のみをフィルタリング
-  const voiceActors = charactersData.data
-    .filter((char: any) => 
-      char.voice_actors?.some((va: any) => va.language === 'Japanese')
-    )
-    .map((char: any) => {
-      const japaneseVA = char.voice_actors.find((va: any) => va.language === 'Japanese');
-      return {
-        person: {
-          ...japaneseVA,
-          name: japaneseVA.person.name
-        },
-        character: char.character
-      };
-    })
-    .slice(0, 6);
+    const voiceActors = charactersData.data
+      .filter((char: any) => 
+        char.voice_actors?.some((va: any) => va.language === 'Japanese')
+      )
+      .map((char: any) => {
+        const japaneseVA = char.voice_actors.find((va: any) => va.language === 'Japanese');
+        return {
+          person: {
+            ...japaneseVA,
+            name: japaneseVA.person.name
+          },
+          character: char.character
+        };
+      })
+      .slice(0, 6);
 
-  return {
-    ...formatAnimeData(animeData.data),
-    synopsis: animeData.data.synopsis || '概要は準備中です。',
-    rating: animeData.data.rating,
-    status: formatStatus(animeData.data.status),
-    episodes: animeData.data.episodes || 0,
-    duration: animeData.data.duration,
-    aired: animeData.data.aired,
-    voiceActors,
-    uniqueId: `${animeData.data.mal_id}-${Date.now()}-${Math.random()}`
-  };
+    return {
+      ...formatAnimeData(animeData.data),
+      synopsis: animeData.data.synopsis || '概要は準備中です。',
+      rating: animeData.data.rating,
+      status: formatStatus(animeData.data.status),
+      episodes: animeData.data.episodes || 0,
+      duration: animeData.data.duration,
+      aired: animeData.data.aired,
+      voiceActors,
+      uniqueId: `${animeData.data.mal_id}-${Date.now()}-${Math.random()}`
+    };
+  } catch (error) {
+    console.error('アニメ詳細の取得に失敗しました:', error);
+    throw error;
+  }
 };
 
 const formatAnimeData = (anime: any): AnimeBasic => ({

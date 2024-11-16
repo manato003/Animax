@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, TrendingUp, Clock } from 'lucide-react';
+import { Users, TrendingUp, Clock, Star } from 'lucide-react';
 import { AnimeBasic, AnimeDetailed } from '../types/anime';
 import { AnimeCard } from '../components/AnimeCard';
 import { AnimeModal } from '../components/AnimeModal';
+import { GenreFilter } from '../components/GenreFilter';
 import { fetchAnimeByGenre } from '../services/animeService';
 
-type SortType = 'popularity' | 'trending' | 'newest';
+type SortType = 'popularity' | 'rating' | 'airing' | 'newest';
 
 interface RankingTab {
   id: SortType;
@@ -22,8 +23,14 @@ const RANKING_TABS: RankingTab[] = [
     description: '累計視聴者数が多い作品をランキング',
   },
   {
-    id: 'trending',
-    name: 'トレンド',
+    id: 'rating',
+    name: '評価順',
+    icon: <Star className="w-5 h-5" />,
+    description: '評価の高い作品をランキング',
+  },
+  {
+    id: 'airing',
+    name: '放送中',
     icon: <TrendingUp className="w-5 h-5" />,
     description: '現在放送中で高評価の作品',
   },
@@ -37,6 +44,7 @@ const RANKING_TABS: RankingTab[] = [
 
 export const RankingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SortType>('popularity');
+  const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
   const [animeList, setAnimeList] = useState<AnimeBasic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -46,7 +54,7 @@ export const RankingPage: React.FC = () => {
     const loadRanking = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchAnimeByGenre(null, activeTab, 1);
+        const data = await fetchAnimeByGenre(selectedGenre, activeTab, 1);
         setAnimeList(data);
         setPage(1);
       } catch (error) {
@@ -57,13 +65,13 @@ export const RankingPage: React.FC = () => {
     };
 
     loadRanking();
-  }, [activeTab]);
+  }, [activeTab, selectedGenre]);
 
   const handleLoadMore = async () => {
     setIsLoading(true);
     try {
       const nextPage = page + 1;
-      const moreAnime = await fetchAnimeByGenre(null, activeTab, nextPage);
+      const moreAnime = await fetchAnimeByGenre(selectedGenre, activeTab, nextPage);
       setAnimeList(prev => [...prev, ...moreAnime]);
       setPage(nextPage);
     } catch (error) {
@@ -83,7 +91,7 @@ export const RankingPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">アニメランキング</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         {RANKING_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -109,9 +117,17 @@ export const RankingPage: React.FC = () => {
         <h2 className="text-2xl font-bold mb-2">
           {activeTabData?.name}ランキング
         </h2>
-        <p className="text-gray-400">
+        <p className="text-gray-400 mb-6">
           {activeTabData?.description}
         </p>
+
+        <GenreFilter
+          selectedGenre={selectedGenre}
+          selectedSort={null}
+          onGenreSelect={setSelectedGenre}
+          onSortSelect={() => {}}
+          showSortOptions={false}
+        />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 mb-8">
@@ -121,6 +137,10 @@ export const RankingPage: React.FC = () => {
               <div className="bg-white/10 rounded-xl aspect-[2/3]"></div>
             </div>
           ))
+        ) : animeList.length === 0 ? (
+          <div className="col-span-full text-center py-12 text-gray-400">
+            アニメが見つかりませんでした
+          </div>
         ) : (
           animeList.map((anime, index) => (
             <div key={`${anime.mal_id}-${index}`} className="relative">

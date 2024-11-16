@@ -4,15 +4,16 @@ import { AnimeCard } from '../components/AnimeCard';
 import { AnimeModal } from '../components/AnimeModal';
 import { RatingChart } from '../components/RatingChart';
 import { GenreFilter } from '../components/GenreFilter';
+import { RecommendationSection } from '../components/RecommendationSection';
 import { AnimeBasic, AnimeDetailed } from '../types/anime';
 import { getRatingLabel, getRatingColor } from '../types/rating';
 import { fetchAnimeDetails } from '../services/animeService';
 
-type TabType = 'watchlist' | 'watched' | 'ratings';
+type TabType = 'watchlist' | 'watched' | 'ratings' | 'recommendations';
 
 export const MyPage: React.FC = () => {
   const { watchlist, watchedList, ratings } = useUserStore();
-  const [activeTab, setActiveTab] = useState<TabType>('watchlist');
+  const [activeTab, setActiveTab] = useState<TabType>('recommendations');
   const [selectedGenre, setSelectedGenre] = useState<number | null>(null);
   const [selectedAnime, setSelectedAnime] = useState<AnimeDetailed | null>(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
@@ -24,7 +25,6 @@ export const MyPage: React.FC = () => {
       
       for (const rating of ratings) {
         try {
-          // まずウォッチリストと視聴済みリストから検索
           const existingAnime = [...watchlist, ...watchedList].find(
             a => a.mal_id === rating.animeId
           );
@@ -32,7 +32,6 @@ export const MyPage: React.FC = () => {
           if (existingAnime) {
             animeMap.set(rating.animeId, existingAnime);
           } else {
-            // リストになければAPIから取得
             const details = await fetchAnimeDetails(rating.animeId);
             animeMap.set(rating.animeId, details);
           }
@@ -93,10 +92,20 @@ export const MyPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">マイページ</h1>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
+        <button
+          onClick={() => setActiveTab('recommendations')}
+          className={`btn whitespace-nowrap ${
+            activeTab === 'recommendations'
+              ? 'bg-purple-600 text-white'
+              : 'bg-white/10 text-white hover:bg-white/20'
+          }`}
+        >
+          おすすめ
+        </button>
         <button
           onClick={() => setActiveTab('watchlist')}
-          className={`btn ${
+          className={`btn whitespace-nowrap ${
             activeTab === 'watchlist'
               ? 'bg-purple-600 text-white'
               : 'bg-white/10 text-white hover:bg-white/20'
@@ -106,7 +115,7 @@ export const MyPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('watched')}
-          className={`btn ${
+          className={`btn whitespace-nowrap ${
             activeTab === 'watched'
               ? 'bg-purple-600 text-white'
               : 'bg-white/10 text-white hover:bg-white/20'
@@ -116,7 +125,7 @@ export const MyPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('ratings')}
-          className={`btn ${
+          className={`btn whitespace-nowrap ${
             activeTab === 'ratings'
               ? 'bg-purple-600 text-white'
               : 'bg-white/10 text-white hover:bg-white/20'
@@ -126,14 +135,17 @@ export const MyPage: React.FC = () => {
         </button>
       </div>
 
-      <GenreFilter
-        selectedGenre={selectedGenre}
-        selectedSort={null}
-        onGenreSelect={setSelectedGenre}
-        onSortSelect={() => {}}
-        showSortOptions={false}
-      />
+      {activeTab !== 'recommendations' && (
+        <GenreFilter
+          selectedGenre={selectedGenre}
+          selectedSort={null}
+          onGenreSelect={setSelectedGenre}
+          onSortSelect={() => {}}
+          showSortOptions={false}
+        />
+      )}
 
+      {activeTab === 'recommendations' && <RecommendationSection />}
       {activeTab === 'watchlist' && renderAnimeGrid(watchlist)}
       {activeTab === 'watched' && renderAnimeGrid(watchedList)}
       

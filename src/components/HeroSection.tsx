@@ -73,7 +73,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
   };
 
   return (
-    <header className="relative h-[80vh] overflow-hidden">
+    <header className="relative h-[60vh] md:h-[80vh] overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/30 to-black/90 z-10" />
       
       {featuredAnime.length > 0 && (
@@ -90,7 +90,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
               >
                 <div className="absolute inset-0 bg-black">
                   <div
-                    className="absolute inset-0 bg-cover bg-left"
+                    className="absolute inset-0 bg-cover bg-center md:bg-left"
                     style={{
                       backgroundImage: `url(${anime.images.jpg.large_image_url})`,
                     }}
@@ -105,7 +105,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
                     />
                   </div>
                   <div
-                    className="absolute inset-0 bg-contain bg-left bg-no-repeat"
+                    className="absolute inset-0 bg-contain bg-center md:bg-left bg-no-repeat"
                     style={{
                       backgroundImage: `url(${anime.images.jpg.large_image_url})`,
                     }}
@@ -115,30 +115,30 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
             ))}
           </div>
 
-          <div className="relative z-20 h-full flex flex-col items-center justify-center">
-            <div className="container mx-auto px-4">
+          <div className="relative z-20 h-full flex flex-col items-center justify-center px-4 md:px-0">
+            <div className="container mx-auto">
               <div className="max-w-2xl mx-auto">
                 <SearchBar onSearch={onSearch} />
               </div>
             </div>
           </div>
 
-          <div className="absolute bottom-8 right-8 z-20 flex items-end justify-end gap-8">
+          <div className="absolute bottom-4 md:bottom-8 left-4 right-4 md:right-8 z-20 flex flex-col md:flex-row md:items-end md:justify-end gap-4 md:gap-8">
             <button
               onClick={() => handleAnimeClick(featuredAnime[currentIndex])}
-              className="text-right transition-all duration-300 hover:text-yellow-400"
+              className="text-center md:text-right transition-all duration-300 hover:text-yellow-400"
             >
-              <h2 className="text-2xl font-bold leading-tight line-clamp-2 text-shadow">
+              <h2 className="text-xl md:text-2xl font-bold leading-tight line-clamp-2 text-shadow">
                 {featuredAnime[currentIndex].title}
               </h2>
             </button>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center md:justify-end gap-4">
               <button
                 onClick={handlePrevious}
                 className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6" />
               </button>
 
               <div className="flex gap-2">
@@ -148,7 +148,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
                     onClick={() => handleDotClick(index)}
                     className={`w-2 h-2 rounded-full transition-all duration-300 ${
                       index === currentIndex
-                        ? 'w-8 bg-white'
+                        ? 'w-6 md:w-8 bg-white'
                         : 'bg-white/50 hover:bg-white/80'
                     }`}
                   />
@@ -159,7 +159,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch }) => {
                 onClick={handleNext}
                 className="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-5 h-5 md:w-6 md:h-6" />
               </button>
             </div>
           </div>
